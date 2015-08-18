@@ -1,5 +1,3 @@
-process.env.AWS_PROFILE = 'inno';
-
 var AWS = require('aws-sdk'),
     async = require('async'),
     config = require('./config'),

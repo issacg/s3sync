@@ -4,6 +4,23 @@
 
 Edit config.js to set your AWS credentials and set up the source and destination buckets and paths.
 
+In the supplied config, there are two syncs set up:
+
+The first will use a bucket named "srcbucket" in region us-west-2 as the origin,
+and synchronize the contents of "srcfolder" inside that bucket.  The destination
+buckets will be "destbucket_prefix.usw2", "destbucket_prefix.euw1" and
+"destbucket.cnn1" in us-west-2, eu-west-1 and cn-north-1 respectively.  The
+cn-north-1 bucket will use a seperate set of AWS keys (any of the buckets could
+use seperate keys if needed).  Further the files will contain the same directory
+structure as the source beginning from "srcfolder/" except that they will be
+written under "destfolder/" in the destination buckets.
+
+The second job will use a bucket named "srcbucket2" in region us-east-1 (S3's
+US-STANDARD region) as the origin, and synchronize the contents of "srcfolder2"
+inside that bucket to "destfolder2" in buckets "destbucket_prefix.use1", also
+located in us-east-1, and the same "destbucket_prefix.euw1" in eu-west-1 from the
+first job.
+
 ## Rationale
 
 Why make another S3 sync tool?  AWS supports S3 replication as part of S3, and

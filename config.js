@@ -23,7 +23,7 @@ var defaults = {
         ],
         buckets: [
             {src:'srcbucket',srcprefix:'srcfolder/',srcregion:'us-west-2',dest:'destbucket_prefix',destprefix:'destfolder/',destregions:["us-west-2","eu-west-1","cn-north-1"]},
-            {src:'srcbucket',srcprefix:'srcfolder2/',srcregion:'us-east-1',dest:'destbucket_prefix',destprefix:'destfolder2/',destregions:["us-east-1","eu-west-1"]},
+            {src:'srcbucket2',srcprefix:'srcfolder2/',srcregion:'us-east-1',dest:'destbucket_prefix',destprefix:'destfolder2/',destregions:["us-east-1","eu-west-1"]},
         ]
     }
 

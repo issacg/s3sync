@@ -206,9 +206,14 @@ function compareBucketRegions(src, dest, cb) {
   // if doesn't exist in src
      // deleteobject
 
+logger.info("Starting");
 async.each(buckets, function(bucket, cb) {
     getSrc(bucket, function(err, toc) {
         if (err) return cb(err);
+        logger.info("" + bucket.src + "/" + bucket.srcprefix +  " contains " + Object.keys(toc.src.keys).length + " keys");
+        toc.dest.forEach(function(dest) {
+            logger.info("" + bucket.dest + dest.s3.suffix  + "/" + bucket.destprefix + " contains " + Object.keys(dest.keys).length + " keys");
+        });
         async.each(toc.dest, async.apply(compareBucketRegions, toc.src), cb);
     });
 }, function(err) {

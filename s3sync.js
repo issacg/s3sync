@@ -3,6 +3,8 @@ var AWS = require('aws-sdk'),
     config = require('./config'),
     _  = require('lodash'),
     logging = require('./logging'),
+    moment = require('moment'),
+    sqs = require('sqs-consumer'),
     logger = logging.getLogger('s3sync');
 
 AWS.config.update(config.aws);
@@ -98,7 +100,7 @@ function copyObject(src, dest, key, cb) {
         params.Bucket = dest.bucket;
         params.Key = destKey;
         params.Body = src.s3.s3.getObject({Bucket: src.bucket, Key: key}).createReadStream();
-        params.ContentLength = src.keys[key].Size;
+        params.ContentLength = src.keys[key].Size; // What happens if the file is updated between the listObjects and here?
         dest.s3.s3.upload(params, cb);
     }
 }
@@ -109,7 +111,7 @@ function deleteObject(dest, key, cb) {
     dest.s3.s3.deleteObject({Bucket: dest.bucket, Key: destKey}, cb);
 }
 
-function getSrc(bucket, cb) {
+function syncJobObject(bucket) {
     // This makes an object looking like this:
     //{
     //    src: {
@@ -127,18 +129,23 @@ function getSrc(bucket, cb) {
     //        }, ...
     //    ]
     //}
-    var src = {s3:getS3Obj(bucket.srcregion),bucket:bucket.src,bucketObj:bucket};
-    var dest = _.map(_.map(bucket.destregions, getS3Obj), function(s3) {return {s3:s3,bucket:bucket.dest + s3.suffix,bucketObj:bucket}});
+    return {
+        src:{s3:getS3Obj(bucket.srcregion),bucket:bucket.src,bucketObj:bucket,keys:[]},
+        dest : _.map(_.map(bucket.destregions, getS3Obj), function(s3) {return {s3:s3,bucket:bucket.dest + s3.suffix,bucketObj:bucket,keys:[]}})
+    }
+}
 
+function getSrc(bucket, cb) {
+    var obj = syncJobObject(bucket);
     function getSrc(cb) {
         listObjects(bucket.src, bucket.srcprefix, src.s3, function(err, res) {
-            src.keys = res;
+            obj.src.keys = res;
             cb(err);
         });
     }
     function getDest(cb) {
         async.map(
-            dest,
+            obj.dest,
             function(region, cb) {
                 listObjects(bucket.dest + region.s3.suffix, bucket.destprefix, region.s3, function(err, res) {
                     region.keys = res;
@@ -206,21 +213,118 @@ function compareBucketRegions(src, dest, cb) {
   // if doesn't exist in src
      // deleteobject
 
-logger.info("Starting");
-async.each(buckets, function(bucket, cb) {
-    getSrc(bucket, function(err, toc) {
-        if (err) return cb(err);
-        logger.info("" + bucket.src + "/" + bucket.srcprefix +  " contains " + Object.keys(toc.src.keys).length + " keys");
-        toc.dest.forEach(function(dest) {
-            logger.info("" + bucket.dest + dest.s3.suffix  + "/" + bucket.destprefix + " contains " + Object.keys(dest.keys).length + " keys");
+function fullSync(cb) {
+    var starttime = new moment();
+    logger.info("Starting");
+    async.each(buckets, function(bucket, cb) {
+        getSrc(bucket, function(err, toc) {
+            if (err) return cb(err);
+            logger.info("" + bucket.src + "/" + bucket.srcprefix +  " contains " + Object.keys(toc.src.keys).length + " keys");
+            toc.dest.forEach(function(dest) {
+                logger.info("" + bucket.dest + dest.s3.suffix  + "/" + bucket.destprefix + " contains " + Object.keys(dest.keys).length + " keys");
+            });
+            async.each(toc.dest, async.apply(compareBucketRegions, toc.src), cb);
         });
-        async.each(toc.dest, async.apply(compareBucketRegions, toc.src), cb);
+    }, function(err) {
+        var endtime = new moment();
+        logger.info("Operation took " + moment.duration(endtime - starttime).humanize() + " to complete");
+        if (err) {
+            logger.warn("Operation completed with errors");
+            logger.error(err);
+            cb(err);
+        } else {
+            logger.info("Operation completed successfully");
+            cb();
+        }
     });
-}, function(err) {
-    if (err) {
-        logger.warn("Operation completed with errors");
-        logger.error(err);
-    } else {
-        logger.info("Operation completed successfully");
+}
+
+function handleMessage(message, done) {
+    // Parse & validate the event
+    if (!(message && message.Body)) return done (new Error("missing message body: " + message));
+    var body;
+    try {
+        body = JSON.parse(message.Body);
+    } catch(e) {
+        return done(e);
     }
-});
+
+    if (body && body.Event && body.Event == "s3:TestEvent") {
+        logger.trace("Got S3 test event from Amazon.  Ignoring.");
+        return done();
+    }
+
+    if (!(body.Records && body.Records.length && body.Records.length == 1 &&
+          body.Records[0].eventSource == "aws:s3" && body.Records[0].s3 &&
+          body.Records[0].awsRegion && body.Records[0].eventName)) return done (new Error("invalid or missing s3 message: " + message.Body));
+
+    // Find a matching action or ignore.  We know how to deal with all actions, so error if unknown
+    var action;
+
+    if (_.startsWith(body.Records[0].eventName,"ObjectCreated"))
+        action = "ObjectCreated"
+    else if (_.startsWith(body.Records[0].eventName,"ObjectRemoved"))
+        action = "ObjectRemoved"
+    else if (_.startsWith(body.Records[0].eventName,"ReducedRedundancyLostObject"))
+        action = "ReducedRedundancyLostObject"
+
+    if (!action) {
+        done("Unknown action: " + body.Records[0].eventName)
+    }
+
+    // Find a matching config rule, or ignore if none matched
+    var rule;
+    if (action == "ObjectCreated" || action == "ObjectRemoved") {
+        var rule = _.find(config.s3sync.buckets, function(obj) {
+            return ((obj.src == body.Records[0].s3.bucket.name) &&
+                    (_.startsWith(body.Records[0].s3.object.key, obj.srcprefix)))
+            });
+    } else {
+        // TODO - generate a rule for ReducedRedundancyLostObject
+    }
+
+    if (!rule) {
+        logger.trace("No rule found.  Ignoring " + action + " event for " + body.Records[0].s3.object.key);
+        return done();
+    }
+
+    // Deal with the event
+    if (action == "ObjectCreated") {
+        var obj = syncJobObject(rule);
+        obj.src.keys[body.Records[0].s3.object.key] = {Size: body.Records[0].s3.object.size};
+        async.each(obj.dest, function(dest, cb) {
+            copyObject(obj.src, dest, body.Records[0].s3.object.key, cb);
+        }, done);
+        return;
+    }
+
+    if (action == "ObjectRemoved") {
+        var obj = syncJobObject(rule);
+        async.each(obj.dest, function(dest, cb) {
+            deleteObject(dest, body.Records[0].s3.object.key, cb);
+        }, done);
+        return;
+    }
+
+    done(new Error("Missing action"));
+}
+
+function sqsSync(cb) {
+    var q = sqs.create({
+        queueUrl: config.s3sync.sqs.url,
+        region: config.s3sync.sqs.region,
+        handleMessage: handleMessage,
+        batchSize:10
+    });
+    q.start();
+    q.on("error", function(er) {
+        logger.error("caught " + er);
+    });
+    function stop() {
+        logger.info("Shutting down (this may take up to 30 seconds)...");
+        q.stop();
+        cb();
+    }
+    //process.on('SIGINT', stop);
+    //process.on('SIGHUP', stop);
+}

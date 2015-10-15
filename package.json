@@ -1,6 +1,6 @@
 {
   "name": "s3sync",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Script to synchronize between many S3 buckets",
   "main": "s3sync.js",
   "author": "Issac Goldstand <issac@ironsrc.com>",
@@ -18,10 +18,12 @@
   "homepage": "https://github.com/issacg/s3sync#readme",
   "dependencies": {
     "async": "^1.4.2",
-    "aws-sdk": "^2.1.45",
+    "aws-sdk": "^2.2.9",
     "lodash": "^3.10.1",
     "log4js": "^0.6.26",
     "memoize": "^0.1.1",
-    "rc": "^1.1.0"
+    "moment": "^2.10.6",
+    "rc": "^1.1.0",
+    "sqs-consumer": "^2.2.0"
   }
 }

@@ -326,6 +326,36 @@ function sqsSync(cb) {
         q.stop();
         cb();
     }
-    //process.on('SIGINT', stop);
-    //process.on('SIGHUP', stop);
+    shutdownfuncs.push(stop);
 }
+
+function noop() {}
+var shutdownfuncs = [];
+function shutdown() {
+    logger.warn("Caught shutdown signal.  Finishing jobs in process (send SIGTERM to forcefully kill)");
+    shutdownfuncs.forEach(function(f){f()});
+}
+
+if (config.d) {
+    sqsSync(noop);
+}
+
+if (config.fullsync && config.fullsync.interval) {
+    logger.info("Scheduling full sync every " + config.fullsync.interval + "ms");
+    var i = setInterval(fullSync.bind(noop), config.fullsync.interval);
+    shutdownfuncs.push(function() {
+        clearInterval(i);
+    });
+}
+
+
+if (!config['skip-fullsync']) {
+    fullSync(noop);
+}
+
+if (shutdownfuncs.length > 0) {
+    process.on('SIGINT', shutdown);
+    process.on('SIGHUP', shutdown);
+}
+
+

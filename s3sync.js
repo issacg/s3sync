@@ -342,7 +342,7 @@ if (config.d) {
 
 if (config.fullsync && config.fullsync.interval) {
     logger.info("Scheduling full sync every " + config.fullsync.interval + "ms");
-    var i = setInterval(fullSync.bind(noop), config.fullsync.interval);
+    var i = setInterval(fullSync.bind(noop), config.fullsync.interval * 1000);
     shutdownfuncs.push(function() {
         clearInterval(i);
     });
@@ -357,5 +357,3 @@ if (shutdownfuncs.length > 0) {
     process.on('SIGINT', shutdown);
     process.on('SIGHUP', shutdown);
 }
-
-

@@ -341,7 +341,7 @@ if (config.d) {
 }
 
 if (config.fullsync && config.fullsync.interval) {
-    logger.info("Scheduling full sync every " + config.fullsync.interval + "ms");
+    logger.info("Scheduling full sync every " + config.fullsync.interval + "s");
     var i = setInterval(fullSync.bind(noop), config.fullsync.interval * 1000);
     shutdownfuncs.push(function() {
         clearInterval(i);

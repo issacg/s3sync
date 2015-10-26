@@ -254,6 +254,17 @@ function handleMessage(message, done) {
         return done();
     }
 
+    if (body && body.Type && body.Type == "Notification" &&
+        body.MessageId && body.Message &&
+        body.Subject && body.Subject == "Amazon S3 Notification") {
+        logger.trace("Unwrapping SNS notification");
+        try {
+            body = JSON.parse(body.Message);
+        } catch (e) {
+            return done(e);
+        }
+    }
+
     if (!(body.Records && body.Records.length && body.Records.length == 1 &&
           body.Records[0].eventSource == "aws:s3" && body.Records[0].s3 &&
           body.Records[0].awsRegion && body.Records[0].eventName)) return done (new Error("invalid or missing s3 message: " + message.Body));

@@ -138,7 +138,7 @@ function syncJobObject(bucket) {
 function getSrc(bucket, cb) {
     var obj = syncJobObject(bucket);
     function getSrc(cb) {
-        listObjects(bucket.src, bucket.srcprefix, src.s3, function(err, res) {
+        listObjects(bucket.src, bucket.srcprefix, obj.src.s3, function(err, res) {
             obj.src.keys = res;
             cb(err);
         });
@@ -156,7 +156,7 @@ function getSrc(bucket, cb) {
         );
     }
     async.parallel([getSrc,getDest], function(err) {
-        cb(err, {src:src,dest:dest});
+        cb(err, {src:obj.src,dest:obj.dest});
     });
 }
 

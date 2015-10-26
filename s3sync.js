@@ -310,6 +310,7 @@ function handleMessage(message, done) {
 }
 
 function sqsSync(cb) {
+    logger.info("Connecting to SQS queue at " + config.s3sync.sqs.url);
     var q = sqs.create({
         queueUrl: config.s3sync.sqs.url,
         region: config.s3sync.sqs.region,
@@ -321,7 +322,7 @@ function sqsSync(cb) {
         logger.error("caught " + er);
     });
     function stop() {
-        logger.info("Shutting down (this may take up to 30 seconds)...");
+        logger.info("Shutting down SQS.   May take up to 30 seconds.")
         q.stop();
         cb();
     }

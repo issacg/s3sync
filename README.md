@@ -52,7 +52,7 @@ SQS as [documented here](http://docs.aws.amazon.com/AmazonS3/latest/dev/Notifica
 The configuration for running in SQS mode is identical to that of running in
 *full-sync* mode, with an additional configuration section for the SQS information.
 
-```json
+```js
 s3sync:{
     regions: [
     // ...

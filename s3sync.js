@@ -345,6 +345,7 @@ var shutdownfuncs = [];
 function shutdown() {
     logger.warn("Caught shutdown signal.  Finishing jobs in process (send SIGTERM to forcefully kill)");
     shutdownfuncs.forEach(function(f){f()});
+    shutdownfuncs = [];
 }
 
 if (config.d) {

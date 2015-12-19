@@ -369,3 +369,13 @@ if (shutdownfuncs.length > 0) {
     process.on('SIGINT', shutdown);
     process.on('SIGHUP', shutdown);
 }
+
+process.on('uncaughtException', function(err) {
+    logger.error("Uncaught exception.  Shutting down!");
+    logger.error(err);
+    // Use setImmediate to force a clear callstach & allow shutdown() to finish processing shutdownfuncs at least once
+    setImmediate(function() {
+        shutdown();
+        setTimeout(function(){process.exit(-1)}, 30000).unref();
+    });
+});
